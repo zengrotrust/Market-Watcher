@@ -14,6 +14,8 @@
     {"symbol": "QQQ", "name": "Nasdaq 100"},
     {"symbol": "IWM", "name": "Russell 2000"},
     {"symbol": "DIA", "name": "Dow 30"},
+    {"symbol": "ES=F", "name": "E-mini S&P 500"},
+    {"symbol": "NQ=F", "name": "E-mini Nasdaq 100"},
     {"symbol": "XLK", "name": "Technology"},
     {"symbol": "XLF", "name": "Financials"},
     {"symbol": "XLE", "name": "Energy"},

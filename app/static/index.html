@@ -31,6 +31,7 @@ tr.hit td:first-child{border-left-color:var(--bad)}
 .tile{min-width:170px;padding:10px 16px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
 .tile .val{margin-right:8px;font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
 input[type=text]{font:inherit;color:var(--tx);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+.det.warn{color:var(--warn)}
 header a{color:var(--mut);text-decoration:none}
 header a:hover{color:var(--tx)}
 </style>
@@ -58,6 +59,9 @@ function render() {
   $("mkt").innerHTML = (D.market || []).map(m =>
     `<div class="tile"><div class="mut">${m.name}</div><div><span class="val">${m.value}</span>`
     + `<span class="pill ${m.level}">${m.label}</span></div><span class="det">${m.detail}</span></div>`).join("");
+  const cnt = {};
+  D.rows.forEach(r => { if (r.asof) cnt[r.asof] = (cnt[r.asof] || 0) + 1; });
+  const ref = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a] || (a < b ? 1 : -1))[0];
   const cols = D.columns, only = $("only").checked;
   const nBad = c => D.rows.filter(r => (r.signals[c] || {}).flag).length;
   const rows = D.rows
@@ -72,7 +76,7 @@ function render() {
       return `<td><span class="pill ${s.level}">${s.label}</span><span class="det">${s.detail}</span></td>`;
     }).join("");
     return `<tr class="${hit ? "hit" : ""}"><td><b>${r.symbol}</b> <span class="mut">${r.name || ""}</span></td>`
-      + `<td class="num">${r.price ?? "–"}</td>`
+      + `<td class="num">${r.price ?? "–"}<span class="det ${r.asof < ref ? "warn" : ""}">${r.asof ? r.asof + (r.asof < ref ? " (old)" : "") : ""}</span></td>`
       + `<td class="num ${r.chg >= 0 ? "good" : "bad"}">${r.chg == null ? "" : r.chg.toFixed(2) + "%"}</td>${cells}</tr>`;
   }).join("");
 }
@@ -94,7 +98,7 @@ $("add").onclick = async () => {
   const cfg = await (await fetch("/api/config")).json();
   if (!cfg.tickers.some(t => t.symbol === sym)) cfg.tickers.push({symbol: sym, name: ""});
   const r = await fetch("/api/config", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(cfg)});
-  if (!r.ok) { alert("Could not add " + sym + ". Use letters, digits, and . - ^ = only."); return; }
+  if (!r.ok) { alert("Could not add " + sym + ". Use letters, digits, and . - ^ = / only."); return; }
   $("newsym").value = "";
   $("upd").textContent = "Fetching " + sym + "…";
   setTimeout(load, 15000);

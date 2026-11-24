@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import yfinance as yf
 from typing import List, Literal, Optional
 
@@ -148,7 +149,7 @@ def vix(s):
     label, level = (("Complacent", "warn") if v < lo else ("Normal", "na") if v < mid
                     else ("Elevated", "warn") if v < hi else ("Fear", "bad"))
     return {"name": "VIX", "value": f"{v:.2f}", "label": label, "level": level,
-            "detail": f"{chg:+.1f}% on the day"}
+            "detail": f"{chg:+.1f}% on the day, {df.index[-1].date()}"}
 
 
 MARKET = [vix]
@@ -158,8 +159,14 @@ lock = threading.Lock()
 
 def fetch(sym):
     try:
-        df = yf.Ticker(sym).history(period="2y", interval="1d", auto_adjust=True)
-        df = df.dropna(subset=["Close"])
+        t = yf.Ticker(sym)
+        df = t.history(period="2y", interval="1d", auto_adjust=True).dropna(subset=["Close"])
+        try:  # the long request can lag by a bar; a short one often has the newest
+            r = t.history(period="5d", interval="1d", auto_adjust=True).dropna(subset=["Close"])
+            if len(df) and len(r):
+                df = pd.concat([df, r[r.index > df.index[-1]]])
+        except Exception:
+            pass
         return sym, (df if len(df) else None)
     except Exception as e:
         print(f"fetch {sym} failed: {e}", flush=True)
@@ -241,8 +248,23 @@ def force_refresh():
     return {"ok": True}
 
 
+@app.get("/api/debug/{symbol}")
+def debug(symbol: str):
+    """Raw last bars for both requests, to see exactly what Yahoo returned."""
+    t, out = yf.Ticker(symbol), {"yfinance": yf.__version__}
+    for p in ("2y", "5d"):
+        try:
+            out[p] = t.history(period=p, interval="1d", auto_adjust=True).tail(4).reset_index().astype(str).to_dict("records")
+        except Exception as e:
+            out[p] = str(e)
+    return out
+
+
+NAMES = {"ES=F": "E-mini S&P 500", "NQ=F": "E-mini Nasdaq 100"}
+
+
 class TickerIn(BaseModel):
-    symbol: str = Field(pattern=r"^[A-Za-z0-9.\-^=]{1,15}$")
+    symbol: str = Field(pattern=r"^[A-Za-z0-9.\-^=/]{1,15}$")
     name: str = Field("", max_length=60)
     support: Optional[List[float]] = None
     support_add: Optional[List[float]] = None
@@ -278,10 +300,12 @@ def put_config(cfg: ConfigIn):
     out, seen = {"settings": cfg.settings.model_dump(), "tickers": []}, set()
     for t in cfg.tickers:
         sym = t.symbol.upper()
+        if sym.startswith("/"):  # thinkorswim style futures, e.g. /ES becomes ES=F
+            sym = sym[1:] + "=F"
         if sym in seen:
             continue
         seen.add(sym)
-        d = {"symbol": sym, "name": t.name}
+        d = {"symbol": sym, "name": t.name or NAMES.get(sym, "")}
         for k in ("support", "support_add"):
             if getattr(t, k):
                 d[k] = getattr(t, k)
