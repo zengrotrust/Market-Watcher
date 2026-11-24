@@ -1,0 +1,14 @@
+services:
+  dashboard:
+    build: .
+    container_name: market-breach-dashboard
+    ports:
+      - "8000:8000"
+    volumes:
+      - breach-data:/data
+    environment:
+      - REFRESH_MINUTES=30
+    restart: unless-stopped
+
+volumes:
+  breach-data:
