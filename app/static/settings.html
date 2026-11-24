@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings - Market breach dashboard</title>
+<style>
+:root{--bg:#0e141b;--panel:#151d27;--line:#232e3b;--tx:#e8edf3;--mut:#8593a3;--good:#3fcf95;--bad:#ff6b6b;--warn:#f2b84b}
+*{box-sizing:border-box}
+body{max-width:980px;margin:0 auto;padding:28px;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{display:flex;align-items:center;gap:16px}
+h1{flex:1;margin:0;font-size:20px;font-weight:650;letter-spacing:-.01em}
+h2{margin:28px 0 4px;font-size:15px;font-weight:650}
+a{color:var(--mut);text-decoration:none}a:hover{color:var(--tx)}
+.mut{color:var(--mut)}
+.panel{margin-top:10px;padding:6px 16px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+.row{display:grid;grid-template-columns:200px 240px 1fr;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+input,select,button{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 9px}
+button{background:var(--panel);cursor:pointer}button:hover{border-color:var(--mut)}
+:focus-visible{outline:2px solid var(--warn);outline-offset:2px}
+.row input[type=number]{width:100%}.row input.vb{width:72px;margin-right:6px}
+table{width:100%;min-width:640px;border-collapse:collapse}
+td,th{padding:8px 8px 8px 0;text-align:left;border-bottom:1px solid var(--line);font-weight:400}
+th{color:var(--mut)}tr:last-child td{border-bottom:0}
+td input{width:100%}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px}
+#msg.ok{color:var(--good)}#msg.err{color:var(--bad)}
+</style>
+</head>
+<body>
+<header><h1>Settings</h1><a href="/">Back to dashboard</a></header>
+
+<h2>Tickers</h2>
+<div class="mut">Manual support levels replace the auto-detected levels for that ticker, or add to them. Leave blank to use auto-detection only.</div>
+<div class="panel">
+  <table>
+    <thead><tr><th>Symbol</th><th>Name</th><th>Manual support levels</th><th>Mode</th><th></th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div class="bar"><input id="newsym" placeholder="New symbol" size="12"><button id="add">Add ticker</button></div>
+
+<h2>Parameters</h2>
+<div class="panel" id="params"></div>
+
+<div class="bar">
+  <button id="save">Save changes</button>
+  <button id="reset">Reset parameters to defaults</button>
+  <span id="msg"></span>
+</div>
+<p class="mut">Saving applies the changes and refreshes the data in the background, which takes about 15 seconds.</p>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+const P = [
+  ["structure", "Structure mode", "swing compares the last two swing highs or lows; bar compares the latest bar with the prior bar"],
+  ["pivot_window", "Pivot window (bars)", "Bars on each side that must be lower or higher to confirm a swing"],
+  ["lookback", "Lookback (bars)", "How much history is searched for swings and support"],
+  ["cluster_pct", "Cluster tolerance (%)", "Swing lows within this % of each other merge into one support level"],
+  ["min_touches", "Minimum touches", "Swing lows needed for a level to count as support"],
+  ["breach_buffer_pct", "Breach buffer (%)", "A daily close this far below support counts as a breach"],
+  ["breach_recent_days", "Breach window (days)", "How many days a breach stays flagged"],
+  ["vix_bands", "VIX bands", "Complacent below the first, Normal below the second, Elevated below the third, Fear above"],
+];
+let cfg, defaults, T = [];
+
+function field(k) {
+  const v = cfg.settings[k];
+  if (k === "structure") return `<select id="p_structure">${["swing", "bar"].map(o => `<option ${v === o ? "selected" : ""}>${o}</option>`).join("")}</select>`;
+  if (k === "vix_bands") return v.map(x => `<input type="number" step="any" class="vb" value="${esc(x)}">`).join("");
+  return `<input type="number" step="any" id="p_${k}" value="${esc(v)}">`;
+}
+function renderParams() {
+  $("params").innerHTML = P.map(([k, label, hint]) =>
+    `<div class="row"><label>${label}</label><div>${field(k)}</div><span class="mut">${hint}</span></div>`).join("");
+}
+function renderTickers() {
+  $("tbody").innerHTML = T.map((t, i) => `<tr><td><b>${esc(t.symbol)}</b></td>
+    <td><input data-i="${i}" data-f="name" value="${esc(t.name)}"></td>
+    <td><input data-i="${i}" data-f="levels" value="${esc(t.levels)}" placeholder="e.g. 640, 615"></td>
+    <td><select data-i="${i}" data-f="mode"><option value="support" ${t.mode === "support" ? "selected" : ""}>Replace auto</option>
+      <option value="support_add" ${t.mode === "support_add" ? "selected" : ""}>Add to auto</option></select></td>
+    <td><button data-del="${i}">Remove</button></td></tr>`).join("");
+}
+const parseLevels = s => s.split(/[\s,]+/).map(parseFloat).filter(Number.isFinite);
+
+$("tbody").oninput = e => { const d = e.target.dataset; if (d.f) T[d.i][d.f] = e.target.value; };
+$("tbody").onclick = e => { const i = e.target.dataset.del; if (i !== undefined) { T.splice(i, 1); renderTickers(); } };
+$("add").onclick = () => {
+  const sym = $("newsym").value.trim().toUpperCase();
+  if (sym && !T.some(t => t.symbol === sym)) T.push({symbol: sym, name: "", levels: "", mode: "support"});
+  $("newsym").value = ""; renderTickers();
+};
+$("newsym").onkeydown = e => { if (e.key === "Enter") $("add").click(); };
+$("reset").onclick = () => { cfg.settings = {...defaults}; renderParams(); };
+
+$("save").onclick = async () => {
+  const settings = {};
+  for (const [k] of P) {
+    settings[k] = k === "vix_bands" ? [...document.querySelectorAll(".vb")].map(x => parseFloat(x.value))
+      : k === "structure" ? $("p_structure").value : parseFloat($("p_" + k).value);
+  }
+  const tickers = T.map(t => {
+    const o = {symbol: t.symbol, name: t.name.trim()}, L = parseLevels(t.levels);
+    if (L.length) o[t.mode] = L;
+    return o;
+  });
+  const r = await fetch("/api/config", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({settings, tickers})});
+  const msg = $("msg");
+  if (r.ok) { msg.className = "ok"; msg.textContent = "Saved. Refreshing data now."; return; }
+  const d = await r.json().catch(() => ({}));
+  msg.className = "err";
+  msg.textContent = Array.isArray(d.detail) ? d.detail.map(x => x.loc.slice(1).join(".") + ": " + x.msg).join("; ") : d.detail || "Save failed";
+};
+
+(async () => {
+  const c = await (await fetch("/api/config")).json();
+  cfg = c; defaults = c.defaults;
+  T = c.tickers.map(t => {
+    const add = !!(t.support_add && t.support_add.length) && !(t.support && t.support.length);
+    return {symbol: t.symbol, name: t.name || "", levels: (add ? t.support_add : t.support || []).join(", "), mode: add ? "support_add" : "support"};
+  });
+  renderParams(); renderTickers();
+})();
+</script>
+</body>
+</html>
