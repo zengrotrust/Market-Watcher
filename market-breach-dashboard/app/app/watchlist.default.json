@@ -1,0 +1,35 @@
+{
+  "settings": {
+    "pivot_window": 5,
+    "lookback": 252,
+    "cluster_pct": 1.5,
+    "min_touches": 2,
+    "breach_buffer_pct": 1.0,
+    "breach_recent_days": 20,
+    "structure": "swing",
+    "vix_bands": [15, 20, 30]
+  },
+  "tickers": [
+    {"symbol": "SPY", "name": "S&P 500"},
+    {"symbol": "QQQ", "name": "Nasdaq 100"},
+    {"symbol": "IWM", "name": "Russell 2000"},
+    {"symbol": "DIA", "name": "Dow 30"},
+    {"symbol": "ES=F", "name": "E-mini S&P 500"},
+    {"symbol": "NQ=F", "name": "E-mini Nasdaq 100"},
+    {"symbol": "XLK", "name": "Technology"},
+    {"symbol": "XLF", "name": "Financials"},
+    {"symbol": "XLE", "name": "Energy"},
+    {"symbol": "XLV", "name": "Health care"},
+    {"symbol": "TLT", "name": "20+ yr Treasuries"},
+    {"symbol": "GLD", "name": "Gold"},
+    {"symbol": "USO", "name": "Oil"},
+    {"symbol": "BTC-USD", "name": "Bitcoin"},
+    {"symbol": "NVDA", "name": "Nvidia"},
+    {"symbol": "AAPL", "name": "Apple"},
+    {"symbol": "MSFT", "name": "Microsoft"},
+    {"symbol": "AMZN", "name": "Amazon"},
+    {"symbol": "GOOGL", "name": "Alphabet"},
+    {"symbol": "META", "name": "Meta"},
+    {"symbol": "TSLA", "name": "Tesla"}
+  ]
+}
